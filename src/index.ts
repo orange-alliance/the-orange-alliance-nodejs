@@ -2,7 +2,8 @@
 import fetch from "node-fetch";
 import * as qs from "qs";
 import HTTPHeaders from "./util/HTTPHeaders";
-import HttpsProxy from "./util/HttpsProxy";
+import * as HttpsProxyAgent from "https-proxy-agent";
+
 import {
   Season,
   Region,
@@ -30,12 +31,29 @@ const api_endpoint = "https://theorangealliance.org/api";
 export class API {
   private _api_key: string;
   private _app_name: string;
-  private _proxy: HttpsProxy | undefined;
+  private _proxy?: string = undefined;
 
-  constructor(api_key: string, application_name: string, proxy?: HttpsProxy) {
+  /**
+   *
+   * @param api_key Api key from myTOA
+   * @param application_name Set an application name that your requests will use.
+   * @param proxy True if proxy comes from HTTP_PROXY environment variable. Use a string to specify a proxy url to use.
+   */
+  constructor(
+    api_key: string,
+    application_name: string,
+    proxy?: string | boolean
+  ) {
     this._api_key = api_key;
     this._app_name = application_name;
-    this._proxy = proxy;
+    if (proxy === true) {
+      this._proxy = process.env.http_proxy;
+      if (!(this._proxy as string).match(/^https?:\/\//)) {
+        this._proxy = "http://" + this._proxy;
+      }
+    } else if (typeof proxy === "string") {
+      this._proxy = proxy;
+    }
   }
 
   headers(): HTTPHeaders {
@@ -62,7 +80,14 @@ export class API {
       query_params = "?" + query_params;
     }
 
+    // Proxy support
+    let agent = undefined;
+    if (this._proxy) {
+      agent = new HttpsProxyAgent(this._proxy);
+    }
+
     let data = fetch(api_endpoint + url + query_params, {
+      agent: agent,
       headers: this.headers()
     })
       .then(res => res.text())
@@ -96,7 +121,7 @@ export class API {
     response_data: string
   ): T[] {
     let res: [any] = JSON.parse(response_data);
-    let x = res.map(value => new c().fromJSON(res) as T);
+    let x = res.map(value => new c().fromJSON(value) as T);
     return x;
   }
 
