@@ -13,3 +13,6 @@ deploy:
   on:
     tags: true
     condition: $TRAVIS_NODE_VERSION = 10
+
+notifications:
+  email: false
